@@ -8,39 +8,57 @@ $Ps1content = Get-Content "$PSScriptRoot\bigipreport.ps1"
 
 Try {
 
+
+
     $VersionHistory = @()
+
+    Add-Type @'
+    public class BigRepVersion {
+        public string date;
+        public string version;
+        public string change;
+        public string author;
+        public string configupdateneeded;
+    }
+'@
 
     Foreach($Line in $Ps1Content){
 
-        $VersionData = ""
+        $VersionLine = ""
         $VersionDict = @{}
 
         if($Line -Match "^#\s+[0-9\.]+\s+[0-9\-]+"){
-            $VersionData = $Line -Replace "^\s*#\s*", ""
-            $VersionArr = $VersionData -Split "\t+"
 
-            $VersionDict["Version"] = $VersionArr[0]
-            $VersionDict["Date"] = $VersionArr[1]
-            $VersionDict["Change"] = $VersionArr[2]
-            $VersionDict["Author"] = $VersionArr[3]
-            $VersionDict["ConfigUpdateNeeded"] = $VersionArr[4]
 
-            $VersionHistory += $VersionDict
+            $VersionObj = New-Object BigRepVersion
+
+            $VersionLine = $Line -Replace "^\s*#\s*", ""
+            $VersionArr = $VersionLine -Split "\t+"
+
+            $VersionObj.version = $VersionArr[0]
+            $VersionObj.date = $VersionArr[1]
+            $VersionObj.change = $VersionArr[2]
+            $VersionObj.author = $VersionArr[3]
+            $VersionObj.configupdateneeded = $VersionArr[4]
+
+            $VersionHistory += $VersionObj
 
         } elseif($Line -Match "^\s*This script generates a"){
             Break;
         } elseif($Line -Match "^#\s{4,}") {
-            $VersionData = $Line -Replace "^#\s+", ""
-            $VersionHistory[$versionHistory.count-1]["Change"] += "`n$Version"
+            $VersionLine = $Line -Replace "^#\s+", ""
+            $VersionHistory[$versionHistory.count-1].change += "`n$VersionLine"
         }
 
     }
-
-    $VersionJson = $VersionHistory | ConvertTo-Json
+ 
+    $VersionHistory | Sort-Object -Property Date -Descending |  ConvertTo-Json | Out-File "$PSScriptRoot\versionhistory.json"
 
 } Catch {
-    Write-Error "Corrupt version history JSON"
+
+    Write-Error "Unable to create version history"
     Break;
+
 }
 
 #Make sure the Zip file does not exist
